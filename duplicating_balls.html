@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0;background:#000;overflow:hidden;">
+<canvas id="c"></canvas>
+
+<script>
+// canvas
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+let cx, cy, R;
+function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+    const s = Math.min(innerWidth, innerHeight);
+    R = s * 0.35;
+    cx = canvas.width / 2;
+    cy = canvas.height / 2;
+}
+resize();
+addEventListener("resize", resize);
+
+// audio unlock
+let soundEnabled = false;
+const hitSound = new Audio("hit.mp3");
+hitSound.volume = 0.45;
+
+document.addEventListener("click", () => {
+    if (!soundEnabled) {
+        hitSound.play().catch(()=>{});
+        soundEnabled = true;
+    }
+});
+
+// timing
+let startTime = performance.now();
+
+// speeds
+const WHITE_SPEED = 2.2;
+const PURPLE_SPEED_MIN = 1.6;
+const PURPLE_SPEED_MAX = 2.2;
+
+const white = {
+    x:0, y:0,
+    vx:WHITE_SPEED,
+    vy:-WHITE_SPEED*0.65,
+    r:10,
+    grow:0,          // no growth at start
+    growLater:0.7,  // growth rate after 30s
+    isWhite:true
+};
+
+const purples = [];
+
+// initial positions
+function firstSpawnPositions() {
+    white.x = cx + R*0.4;
+    white.y = cy - R*0.75;
+
+    purples.push({
+        x: cx - R*0.4,
+        y: cy - R*0.75,
+        vx: 0,
+        vy: PURPLE_SPEED_MIN + 0.3,
+        r: 10,
+        isWhite:false
+    });
+}
+
+function spawnPurpleTop() {
+    const ang = Math.random()*Math.PI + Math.PI;
+    const dist = R * (0.75 + Math.random()*0.1);
+
+    const px = cx + Math.cos(ang)*dist;
+    const py = cy + Math.sin(ang)*dist;
+
+    const spd = PURPLE_SPEED_MIN + Math.random()*(PURPLE_SPEED_MAX - PURPLE_SPEED_MIN);
+
+    let vx = (Math.random()-0.5)*1.0;
+    let vy = 1.0 + Math.random()*0.5;
+
+    const m = Math.hypot(vx,vy);
+    vx = vx/m * spd;
+    vy = vy/m * spd;
+
+    purples.push({
+        x:px, y:py,
+        vx, vy,
+        r:10,
+        isWhite:false
+    });
+}
+
+function updateBall(ball) {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    const dx = ball.x - cx;
+    const dy = ball.y - cy;
+    const d  = Math.hypot(dx,dy);
+    const lim = R - ball.r;
+
+    if (d > lim) {
+        const nx = dx/d;
+        const ny = dy/d;
+
+        ball.x = cx + nx*lim;
+        ball.y = cy + ny*lim;
+
+        const dot = ball.vx*nx + ball.vy*ny;
+        ball.vx -= 2*dot*nx;
+        ball.vy -= 2*dot*ny;
+
+        if (soundEnabled) {
+            hitSound.currentTime = 0;
+            hitSound.play().catch(()=>{});
+        }
+
+        if (!ball.isWhite) spawnPurpleTop();
+    }
+}
+
+function loop() {
+    const t = (performance.now() - startTime) / 1000;
+
+    // after 30 seconds → white ball begins growing
+    if (t > 30 && white.grow === 0) {
+        white.grow = white.growLater;
+    }
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.strokeStyle="#fff";
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.arc(cx,cy,R,0,Math.PI*2);
+    ctx.stroke();
+
+    // white
+    white.r += white.grow;
+    updateBall(white);
+    ctx.fillStyle="#fff";
+    ctx.beginPath();
+    ctx.arc(white.x,white.y,white.r,0,Math.PI*2);
+    ctx.fill();
+
+    // purple
+    for (let i = purples.length-1; i >= 0; i--) {
+        const b = purples[i];
+        updateBall(b);
+
+        const dist = Math.hypot(b.x-white.x, b.y-white.y);
+        if (dist < b.r + white.r) {
+            purples.splice(i,1);
+            continue;
+        }
+
+        ctx.fillStyle="#a65bff";
+        ctx.beginPath();
+        ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        ctx.fill();
+    }
+
+    requestAnimationFrame(loop);
+}
+
+firstSpawnPositions();
+loop();
+</script>
+</body>
+</html>
